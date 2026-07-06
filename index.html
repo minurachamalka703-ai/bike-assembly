@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bike Assembly Live Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --accent: #2563eb;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 24px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+        .refresh-btn {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .card h3 { margin: 0 0 8px 0; font-size: 14px; color: #64748b; text-transform: uppercase; }
+        .card .value { font-size: 28px; font-weight: 700; margin: 0; }
+        .table-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 24px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        th, td { padding: 14px 20px; border-bottom: 1px solid var(--border); }
+        th { background-color: #f8fafc; font-weight: 600; }
+        .loading { text-align: center; padding: 40px; font-size: 18px; color: #64748b; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div>
+            <h1 style="margin:0;">Assemble Bike Log</h1>
+            <p style="margin:4px 0 0 0; color:#64748b;">Live syncing with Google Sheets</p>
+        </div>
+        <button class="refresh-btn" onclick="fetchDashboardData()">Refresh Data</button>
+    </div>
+
+    <div class="metrics-grid">
+        <div class="card">
+            <h3>Total Pulsor 160</h3>
+            <p class="value" id="total-pulsor">0</p>
+        </div>
+        <div class="card">
+            <h3>Total Platina 100</h3>
+            <p class="value" id="total-platina">0</p>
+        </div>
+        <div class="card">
+            <h3>Gross Revenue</h3>
+            <p class="value" id="total-revenue">LKR 0</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <canvas id="trendChart" height="100"></canvas>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Pulsor 160 Qty</th>
+                    <th>Platina 100 Qty</th>
+                    <th>Day Total (LKR)</th>
+                </tr>
+            </thead>
+            <tbody id="data-table-body">
+                <tr><td colspan="4" class="loading">Loading data from Google Sheets...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Replace this string with your published Google Sheets CSV URL
+    const SHEET_CSV_URL = "YOUR_PUBLISHED_CSV_URL_HERE";
+
+    let trendChart = null;
+
+    async function fetchDashboardData() {
+        if(SHEET_CSV_URL === "YOUR_PUBLISHED_CSV_URL_HERE") return;
+        
+        try {
+            const response = await fetch(SHEET_CSV_URL);
+            const dataText = await response.text();
+            parseAndRenderData(dataText);
+        } catch (error) {
+            console.error("Error fetching sheet data:", error);
+            document.getElementById('data-table-body').innerHTML = `<tr><td colspan="4" style="color:red; text-align:center;">Failed to pull live updates. Ensure sheet is published as CSV.</td></tr>`;
+        }
+    }
+
+    function parseAndRenderData(csvText) {
+        const lines = csvText.split('\n').map(line => line.split(','));
+        
+        // Dynamic rates from your top rows
+        const pulsorRate = parseInt(lines[1]?.[1]) || 660;
+        const platinaRate = parseInt(lines[1]?.[2]) || 1250;
+
+        let totalPulsorCount = 0;
+        let totalPlatinaCount = 0;
+        let grandTotalRevenue = 0;
+
+        const tableBody = document.getElementById('data-table-body');
+        tableBody.innerHTML = '';
+
+        const chartLabels = [];
+        const chartPulsorData = [];
+
+        // Data rows start after header rows (index 3+)
+        for (let i = 3; i < lines.length; i++) {
+            const row = lines[i];
+            if (!row || !row[0] || row[0].trim() === "" || row[0] === "0") continue;
+
+            const date = row[0].trim();
+            const pulsorQty = parseInt(row[1]) || 0;
+            const platinaQty = parseInt(row[3]) || 0; // Matching your column layouts
+
+            const dayRevenue = (pulsorQty * pulsorRate) + (platinaQty * platinaRate);
+
+            totalPulsorCount += pulsorQty;
+            totalPlatinaCount += platinaQty;
+            grandTotalRevenue += dayRevenue;
+
+            chartLabels.push(date);
+            chartPulsorData.push(pulsorQty);
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>${date}</b></td>
+                <td>${pulsorQty}</td>
+                <td>${platinaQty}</td>
+                <td><b>${dayRevenue.toLocaleString()}</b></td>
+            `;
+            tableBody.appendChild(tr);
+        }
+
+        // Update UI Summary Matrix Cards
+        document.getElementById('total-pulsor').innerText = totalPulsorCount;
+        document.getElementById('total-platina').innerText = totalPlatinaCount;
+        document.getElementById('total-revenue').innerText = "LKR " + grandTotalRevenue.toLocaleString();
+
+        renderChart(chartLabels, chartPulsorData);
+    }
+
+    function renderChart(labels, dataPoints) {
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        if (trendChart) trendChart.destroy();
+        
+        trendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Daily Pulsor 160 Assembly Track',
+                    data: dataPoints,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    tension: 0.2,
+                    fill: true
+                }]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    window.onload = fetchDashboardData;
+</script>
+</body>
+</html>
