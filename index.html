@@ -1,6 +1,3 @@
-
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -91,19 +88,15 @@
 </div>
 
 <script>
-    // Converted Live Google Sheet URL
+    // Live Read Stream URL
     const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/12zvANP4pzQwJtgSfdaC-8qdLMDi42-VSupIH5pdpZzM/export?format=csv&gid=0";
     
-    // Remember to paste your Apps Script URL here if you want to write data back directly from the buttons!
-    const API_URL = "YOUR_SCRIPT_WEB_APP_URL_HERE"; 
+    // Live Apps Script Write API URL
+    const API_URL = "https://script.google.com/macros/s/AKfycbxuEYD-LC1bBbD3vkP3xTOyeR7tWr_qUJDe7bQTFnp5flgT2gcjlEF8h5pBlDRot7632g/exec"; 
 
     let trackerChart = null;
 
     async function sendData(payload) {
-        if(API_URL === "YOUR_SCRIPT_WEB_APP_URL_HERE") {
-            alert("To save data, please connect your Apps Script Web App URL first!");
-            return;
-        }
         try {
             await fetch(API_URL, {
                 method: "POST",
@@ -111,10 +104,10 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             });
-            alert("Data successfully transmitted!");
-            setTimeout(fetchLogs, 1500);
+            alert("Data submitted successfully!");
+            setTimeout(fetchLogs, 1000);
         } catch (e) {
-            alert("Submission failed.");
+            alert("Submission failed. Ensure Web App access configuration is set to 'Anyone'.");
         }
     }
 
@@ -132,7 +125,7 @@
 
     function calculateSalary() {
         const qty = parseInt(document.getElementById('bike-qty').value);
-        if (!qty || qty < 0) return alert("Please input valid production quantities.");
+        if (!qty || qty < 0) return alert("Please input a valid quantity of bikes.");
         
         const rate = 660; 
         const grossPayout = qty * rate;
@@ -148,14 +141,13 @@
     }
 
     async function fetchLogs() {
-        const urlToFetch = SHEET_CSV_URL;
         try {
-            const res = await fetch(urlToFetch);
+            const res = await fetch(SHEET_CSV_URL);
             const textData = await res.text();
             const rawRows = textData.split('\n').map(line => line.split(','));
             renderEngine(rawRows);
         } catch(e) {
-            document.getElementById('log-table-body').innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">Active connection unavailable. Check if the spreadsheet is shared with 'Anyone with the link can view'.</td></tr>`;
+            document.getElementById('log-table-body').innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">Active connection unavailable. Check spreadsheet link configurations.</td></tr>`;
         }
     }
 
@@ -165,8 +157,8 @@
         
         let dates = [], metrics = [];
         
-        // Rows match Column A, B, C, D structure starting at index 3
-        for(let i = 3; i < rows.length; i++) {
+        // Skips structural header blocks to pull log ranges
+        for(let i = 1; i < rows.length; i++) {
             let r = rows[i];
             if(!r || !r[0] || r[0].trim() === "" || r[0] === "0") continue;
             
@@ -174,7 +166,7 @@
             tr.innerHTML = `<td>${r[0]}</td><td><b>${r[1]}</b></td><td>${r[2]}</td><td>${r[3] && r[3].trim() !== "N/A" ? 'LKR ' + parseInt(r[3]).toLocaleString() : '—'}</td>`;
             tbody.appendChild(tr);
 
-            if(r[1] === "Salary Run") {
+            if(r[1].trim() === "Salary Run") {
                 dates.push(r[0]);
                 metrics.push(parseInt(r[3]) || 0);
             }
@@ -202,163 +194,6 @@
     }
 
     window.onload = fetchLogs;
-</script>
-</body>
-</html>
-
-```            margin-top: 24px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-        }
-        th, td { padding: 14px 20px; border-bottom: 1px solid var(--border); }
-        th { background-color: #f8fafc; font-weight: 600; }
-        .loading { text-align: center; padding: 40px; font-size: 18px; color: #64748b; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <div class="header">
-        <div>
-            <h1 style="margin:0;">Assemble Bike Log</h1>
-            <p style="margin:4px 0 0 0; color:#64748b;">Live syncing with Google Sheets</p>
-        </div>
-        <button class="refresh-btn" onclick="fetchDashboardData()">Refresh Data</button>
-    </div>
-
-    <div class="metrics-grid">
-        <div class="card">
-            <h3>Total Pulsor 160</h3>
-            <p class="value" id="total-pulsor">0</p>
-        </div>
-        <div class="card">
-            <h3>Total Platina 100</h3>
-            <p class="value" id="total-platina">0</p>
-        </div>
-        <div class="card">
-            <h3>Gross Revenue</h3>
-            <p class="value" id="total-revenue">LKR 0</p>
-        </div>
-    </div>
-
-    <div class="card">
-        <canvas id="trendChart" height="100"></canvas>
-    </div>
-
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Pulsor 160 Qty</th>
-                    <th>Platina 100 Qty</th>
-                    <th>Day Total (LKR)</th>
-                </tr>
-            </thead>
-            <tbody id="data-table-body">
-                <tr><td colspan="4" class="loading">Loading data from Google Sheets...</td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<script>
-    // Replace this string with your published Google Sheets CSV URL
-    const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1b2L-jVHU54ZAuxnDsVoa39QOc9ONp0qYOh3c3eTwokA/export?format=csv&gid=0";
-
-    let trendChart = null;
-
-    async function fetchDashboardData() {
-        if(SHEET_CSV_URL === "https://docs.google.com/spreadsheets/d/1b2L-jVHU54ZAuxnDsVoa39QOc9ONp0qYOh3c3eTwokA/export?format=csv&gid=0") return;
-        
-        try {
-            const response = await fetch(SHEET_CSV_URL);
-            const dataText = await response.text();
-            parseAndRenderData(dataText);
-        } catch (error) {
-            console.error("Error fetching sheet data:", error);
-            document.getElementById('data-table-body').innerHTML = `<tr><td colspan="4" style="color:red; text-align:center;">Failed to pull live updates. Ensure sheet is published as CSV.</td></tr>`;
-        }
-    }
-
-    function parseAndRenderData(csvText) {
-        const lines = csvText.split('\n').map(line => line.split(','));
-        
-        // Dynamic rates from your top rows
-        const pulsorRate = parseInt(lines[1]?.[1]) || 660;
-        const platinaRate = parseInt(lines[1]?.[2]) || 1250;
-
-        let totalPulsorCount = 0;
-        let totalPlatinaCount = 0;
-        let grandTotalRevenue = 0;
-
-        const tableBody = document.getElementById('data-table-body');
-        tableBody.innerHTML = '';
-
-        const chartLabels = [];
-        const chartPulsorData = [];
-
-        // Data rows start after header rows (index 3+)
-        for (let i = 3; i < lines.length; i++) {
-            const row = lines[i];
-            if (!row || !row[0] || row[0].trim() === "" || row[0] === "0") continue;
-
-            const date = row[0].trim();
-            const pulsorQty = parseInt(row[1]) || 0;
-            const platinaQty = parseInt(row[3]) || 0; // Matching your column layouts
-
-            const dayRevenue = (pulsorQty * pulsorRate) + (platinaQty * platinaRate);
-
-            totalPulsorCount += pulsorQty;
-            totalPlatinaCount += platinaQty;
-            grandTotalRevenue += dayRevenue;
-
-            chartLabels.push(date);
-            chartPulsorData.push(pulsorQty);
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><b>${date}</b></td>
-                <td>${pulsorQty}</td>
-                <td>${platinaQty}</td>
-                <td><b>${dayRevenue.toLocaleString()}</b></td>
-            `;
-            tableBody.appendChild(tr);
-        }
-
-        // Update UI Summary Matrix Cards
-        document.getElementById('total-pulsor').innerText = totalPulsorCount;
-        document.getElementById('total-platina').innerText = totalPlatinaCount;
-        document.getElementById('total-revenue').innerText = "LKR " + grandTotalRevenue.toLocaleString();
-
-        renderChart(chartLabels, chartPulsorData);
-    }
-
-    function renderChart(labels, dataPoints) {
-        const ctx = document.getElementById('trendChart').getContext('2d');
-        if (trendChart) trendChart.destroy();
-        
-        trendChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Daily Pulsor 160 Assembly Track',
-                    data: dataPoints,
-                    borderColor: '#2563eb',
-                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                    tension: 0.2,
-                    fill: true
-                }]
-            },
-            options: { responsive: true, scales: { y: { beginAtZero: true } } }
-        });
-    }
-
-    window.onload = fetchDashboardData;
 </script>
 </body>
 </html>
